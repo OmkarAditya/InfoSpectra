@@ -1,91 +1,127 @@
-from langchain import PromptTemplate
-from langchain.chains import RetrievalQA
-from langchain.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-
-
-from dotenv import load_dotenv
+from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response
+from firebase_admin import auth, credentials, initialize_app, firestore
 import os
+from dotenv import load_dotenv
+from datetime import datetime
 
-# Load environment variables from .env file
+from query import initialize_qa_chain
+
+# Load environment variables
 load_dotenv()
-# Extract the GOOGLE_GEMINI_KEY from .env file
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# Initialize Flask app
+app = Flask(__name__)
 
-# Initialize the LLM (Google Gemini Pro) with API key
-llm = ChatGoogleGenerativeAI(
-    model="gemini-pro", 
-    google_api_key=GOOGLE_API_KEY, 
-    temperature=0.2, 
-    convert_system_message_to_human=True
-)
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+initialize_app(cred)
 
-# Load the PDF document and split it into pages
-pdf_loader = PyPDFLoader("./data/doc.pdf")
-pages = pdf_loader.load_and_split()
+# Initialize Firestore
+db = firestore.client()
+user_collection = db.collection('users')
+query_collection = db.collection('queries')
 
-# Split text into chunks with overlap for better retrieval context
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
-context = "\n\n".join(str(p.page_content) for p in pages)
-texts = text_splitter.split_text(context)
+#initialize query
+qa_chain = initialize_qa_chain()  
 
-# Create embeddings for text chunks using Google Generative AI Embeddings
-embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/embedding-001", 
-    google_api_key=GOOGLE_API_KEY
-)
-vector_index = Chroma.from_texts(texts, embeddings).as_retriever(search_kwargs={"k": 5})
+@app.route('/')
+def index():
+    return redirect(url_for('query'))  # Redirect to query directly for all users
 
-# Define the prompt template for answering questions based on retrieved documents
-template = """Use the following pieces of context to answer the question at the end. 
-If you don't know the answer, just say that you don't know, don't try to make up an answer. 
-Keep the answer as concise as possible. Always say "thanks for asking!" at the end of the answer.
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
 
-Context:
-{context}
+    try:
+        # Check if the email already exists in Firebase
+        user = auth.get_user_by_email(email)
+        return jsonify({"status": "error", "message": "Email already registered."}), 400
+    except auth.UserNotFoundError:
+        try:
+            user = auth.create_user(email=email, password=password)
+            # On successful registration, set cookie and redirect to query
+            resp = make_response(jsonify({"status": "success", "user_id": user.uid}))
+            resp.set_cookie('user_id', user.uid, httponly=True)
+            # Store new user in Firestore
+            user_collection.add({"user_id": user.uid, "frequency": 1, "email": email})
+            return resp, 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-Question: {question}
-Top K Results: 5
-Threshold: 0.5
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
 
-Provide the top 5 answers based on the context, where each answer should include:
-1. The answer text.
-2. The similarity score of the answer.
+    try:
+        # Check if the user exists
+        user = auth.get_user_by_email(email)
 
-Only include results where the similarity score is greater than or equal to the threshold, also give each answer in new line. 
+        # Set a cookie with the user's ID
+        resp = make_response(jsonify({"status": "success", "user_id": user.uid}))
+        resp.set_cookie('user_id', user.uid, httponly=True)  # Secure cookie to store user ID
+        return resp
+    except auth.UserNotFoundError:
+        return jsonify({"error": "Invalid email or password."}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-Format your response as a list of answers with their similarity scores:
-1. Answer 1: [Answer Text] (Score: [Similarity Score])
-2. Answer 2: [Answer Text] (Score: [Similarity Score])
-...
-5. Answer 5: [Answer Text] (Score: [Similarity Score])
-
-If no results meet the threshold, say "No relevant answers found." 
-Thanks for asking!"""
-
-QA_CHAIN_PROMPT = PromptTemplate.from_template(template)
-
-# Create a QA chain combining the LLM and retriever for context-based question answering
-qa_chain = RetrievalQA.from_chain_type(
-    llm,
-    retriever=vector_index,
-    return_source_documents=True,
-    chain_type_kwargs={"prompt": QA_CHAIN_PROMPT}
-)
-while True:
-    question = input("Enter your question (or 'exit' to quit): ")
-    if question.lower() == "exit":
-        break
+@app.route('/query', methods=['GET', 'POST'])
+def query():
+    user_id = request.cookies.get('user_id')
     
-    # Query the QA system with the user's question
-    result = qa_chain.invoke({"query": question})
+    if not user_id:
+        return redirect(url_for('login_page'))  # Redirect to login if no cookie
 
-    # Extract the 'result' field, which contains the answers and similarity scores
-    answers = result.get('result', 'No answers found.')
+    if request.method == 'POST':
+        # Handle user prompt input
+        user_prompt = request.form.get('prompt')
 
-    # Print the answers only, excluding source documents
-    print(answers)
+        # Get the user's collection based on user_id
+        user_collection_ref = db.collection(user_id)
 
+        # Check if this is a new collection or an existing one
+        user_documents = user_collection_ref.stream()
+        frequency = 0
+        
+        # Calculate frequency of prompts
+        for doc in user_documents:
+            frequency += 1  # Increment the frequency for each existing document
+
+        # Check if frequency exceeds the limit of n
+        n=3
+        if frequency >= n:
+            # If frequency is n or more, return an alert via JavaScript
+            alert_message = f"<script>alert('You have reached the maximum limit of {n} prompts. You cannot submit more prompts.');</script>"
+            return alert_message + render_template('query.html')
+
+        # Otherwise, process the new prompt
+        answer = qa_chain({"query": user_prompt})["result"]  # Call your QA chain for the answer
+
+        # Add the new document with prompt, answer, timestamp, and updated frequency
+        user_collection_ref.add({
+            "prompt": user_prompt,
+            "answer": answer,
+            "timestamp": datetime.utcnow(),
+            "frequency": frequency + 1  # Update frequency
+        })
+
+        return render_template('query.html', answer=answer)
+
+    return render_template('query.html')  # Render the query page on GET
+
+@app.route('/login')
+def login_page():
+    return render_template('login.html')
+
+@app.route('/signup')
+def signup_page():
+    return render_template('signup.html')
+
+if __name__ == "__main__":
+    app.run(debug=True)
