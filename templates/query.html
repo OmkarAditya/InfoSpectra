@@ -24,7 +24,10 @@
 <body>
     <div class="container">
         <h1>Upload a PDF and Ask a Question</h1>
-        
+
+        <!-- Sign Out Button -->
+        <button id="logoutButton" class="btn btn-danger mb-3">Sign Out</button>
+
         <!-- File Upload Form -->
         <form id="uploadForm" enctype="multipart/form-data">
             <div class="form-group">
@@ -77,6 +80,23 @@
                         } else {
                             alert("An unexpected error occurred.");  // Generic error message
                         }
+                    }
+                });
+            });
+
+            // Handle Sign Out
+            $('#logoutButton').on('click', function() {
+                $.ajax({
+                    url: '/logout',
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.status === "success") {
+                            alert("You have been signed out.");  // Notify user
+                            window.location.href = '/login';  // Redirect to login page
+                        }
+                    },
+                    error: function() {
+                        alert("An error occurred while signing out.");  // Handle error
                     }
                 });
             });

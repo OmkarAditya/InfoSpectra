@@ -21,9 +21,6 @@ db = firestore.client()
 user_collection = db.collection('users')
 query_collection = db.collection('queries')
 
-# Initialize Query Chain
-qa_chain = initialize_qa_chain()
-
 @app.route('/')
 def index():
     return redirect(url_for('query'))  # Redirect to query directly for all users
@@ -81,6 +78,9 @@ def query():
     if request.method == 'POST':
         # Handle user prompt input
         user_prompt = request.form.get('prompt')
+        
+        # Initialize Query Chain
+        qa_chain = initialize_qa_chain()
 
         # Get the user's collection based on user_id
         user_collection_ref = db.collection(user_id)
@@ -99,6 +99,7 @@ def query():
             # If frequency is n or more, return an alert via JavaScript
             alert_message = f"<script>alert('You have reached the maximum limit of {n} prompts. You cannot submit more prompts.');</script>"
             return alert_message + render_template('query.html')
+
 
         # Otherwise, process the new prompt
         answer = qa_chain({"query": user_prompt})["result"]  # Call your QA chain for the answer
@@ -146,6 +147,13 @@ def login_page():
 @app.route('/signup')
 def signup_page():
     return render_template('signup.html')
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    resp = make_response(jsonify({"status": "success"}))
+    resp.set_cookie('user_id', '', expires=0)  # Clear the cookie
+    return resp
+
 
 if __name__ == "__main__":
     app.run(debug=True)
