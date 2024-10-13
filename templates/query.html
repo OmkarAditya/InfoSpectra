@@ -16,11 +16,25 @@
             border-radius: 5px;
             background-color: #f8f9fa;
         }
+        #queryForm {
+            display: none; /* Initially hidden */
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Ask a Question</h1>
+        <h1>Upload a PDF and Ask a Question</h1>
+        
+        <!-- File Upload Form -->
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="file">Upload PDF:</label>
+                <input type="file" class="form-control-file" id="file" name="file" accept="application/pdf" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload PDF</button>
+        </form>
+
+        <!-- Form to Ask a Question (Initially Hidden) -->
         <form id="queryForm" method="POST" action="/query">
             <div class="form-group">
                 <label for="prompt">Your Prompt:</label>
@@ -35,9 +49,38 @@
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script>
-        // Optional: You can add JavaScript here for more interactive functionality.
+        $(document).ready(function() {
+            // Handle PDF upload via AJAX
+            $('#uploadForm').on('submit', function(e) {
+                e.preventDefault();  // Prevent form submission
+                let formData = new FormData(this);
+                
+                $.ajax({
+                    url: '/upload_pdf',  // Update this URL if incorrect
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function(response) {
+                        if (response.message) {
+                            alert(response.message);  // Success message from server
+                            $('#queryForm').show();  // Show the query form
+                            $('#uploadForm').hide(); // Hide the upload form after successful upload
+                        }
+                    },
+                    error: function(response) {
+                        console.log(response);  // Log the full response to debug
+                        if (response.responseJSON && response.responseJSON.error) {
+                            alert("Error uploading PDF: " + response.responseJSON.error);  // Handle error
+                        } else {
+                            alert("An unexpected error occurred.");  // Generic error message
+                        }
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>

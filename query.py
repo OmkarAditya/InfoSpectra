@@ -6,7 +6,9 @@ from langchain.vectorstores import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 import os
+import tempfile
 from dotenv import load_dotenv
+from firebase_admin import storage
 
 def initialize_qa_chain():
     # Load environment variables from .env file
@@ -23,8 +25,26 @@ def initialize_qa_chain():
         convert_system_message_to_human=True
     )
 
+    # Initialize Firebase storage bucket
+    bucket = storage.bucket()
+    
+    # List all PDF files in the specified folder in Firebase Storage
+    blobs = bucket.list_blobs(prefix='pdfs/')  # Adjust prefix according to your structure
+    pdf_files = [blob for blob in blobs if blob.name.endswith('.pdf')]
+    
+    # Get the latest PDF file based on its updated timestamp
+    latest_pdf_blob = max(pdf_files, key=lambda b: b.updated, default=None)
+
+    if latest_pdf_blob is None:
+        raise Exception("No PDF files found in Firebase Storage.")
+
+    # Download the latest PDF file to a temporary location
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+        latest_pdf_blob.download_to_file(temp_file)
+        temp_file_path = temp_file.name
+
     # Load the PDF document and split it into pages
-    pdf_loader = PyPDFLoader("./data/doc.pdf")
+    pdf_loader = PyPDFLoader(temp_file_path)
     pages = pdf_loader.load_and_split()
 
     # Split text into chunks with overlap for better retrieval context
@@ -49,7 +69,7 @@ def initialize_qa_chain():
 
     Question: {question}
     Top K Results: 5
-    Threshold: 0.5
+    Threshold: 0.2
 
     Provide the top 5 answers based on the context, where each answer should include:
     1. The answer text.

@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, make_response
-from firebase_admin import auth, credentials, initialize_app, firestore
+from firebase_admin import auth, credentials, initialize_app, firestore, storage
 import os
 from dotenv import load_dotenv
 from datetime import datetime
@@ -14,15 +14,15 @@ app = Flask(__name__)
 
 # Initialize Firebase Admin SDK
 cred = credentials.Certificate(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
-initialize_app(cred)
+initialize_app(cred, {'storageBucket': os.getenv('FIREBASE_STORAGE_BUCKET')})
 
 # Initialize Firestore
 db = firestore.client()
 user_collection = db.collection('users')
 query_collection = db.collection('queries')
 
-#initialize query
-qa_chain = initialize_qa_chain()  
+# Initialize Query Chain
+qa_chain = initialize_qa_chain()
 
 @app.route('/')
 def index():
@@ -94,7 +94,7 @@ def query():
             frequency += 1  # Increment the frequency for each existing document
 
         # Check if frequency exceeds the limit of n
-        n=3
+        n = 10
         if frequency >= n:
             # If frequency is n or more, return an alert via JavaScript
             alert_message = f"<script>alert('You have reached the maximum limit of {n} prompts. You cannot submit more prompts.');</script>"
@@ -114,6 +114,30 @@ def query():
         return render_template('query.html', answer=answer)
 
     return render_template('query.html')  # Render the query page on GET
+
+@app.route('/upload_pdf', methods=['POST'])
+def upload_pdf():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+        
+        if file and file.filename.endswith('.pdf'):
+            bucket = storage.bucket()
+            blob = bucket.blob(f"pdfs/{file.filename}")
+            blob.upload_from_file(file, content_type='application/pdf')
+            blob.make_public()
+            file_url = blob.public_url
+
+            return jsonify({'message': 'File uploaded successfully!', 'file_url': file_url}), 200
+        else:
+            return jsonify({'error': 'File type not allowed'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/login')
 def login_page():
