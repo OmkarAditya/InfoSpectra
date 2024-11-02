@@ -6,101 +6,220 @@
     <title>Query Page</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
-        .container {
-            margin-top: 50px;
+        /* Font and background */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap');
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            margin: 0;
+            padding: 0;
         }
+
+        .container-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            background-color: #fff;
+            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        /* Header styling */
+        h1 {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #4a4a4a;
+            font-family: 'Roboto', sans-serif;
+            margin-bottom: 30px;
+        }
+
+        /* Button styling */
+        .btn-primary, .btn-danger {
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 6px;
+            width: auto;
+            padding: 10px 20px;
+        }
+
+        /* Upload Button and File Name Styling */
+        .btn-upload {
+            position: relative;
+            padding: 10px 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .file-name {
+            display: inline-block;
+            font-size: 0.9rem;
+            color: #555;
+            margin-left: 10px;
+            font-style: italic;
+        }
+
+        /* Spacing adjustment for the form */
+        #queryForm {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .btn-center {
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        /* Sign Out Button */
+        #logoutButton {
+            margin-top: 20px;
+            font-size: 1rem;
+        }
+
+        /* Form styling */
+        .form-group label {
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .form-control, .form-control-file {
+            font-size: 1rem;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ced4da;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
         .response {
             margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            background-color: #f8f9fa;
+            padding: 20px;
+            background-color: #e9f7fe;
+            border-radius: 8px;
+            border: 1px solid #919ba4;
         }
-        #queryForm {
-            display: none; /* Initially hidden */
+
+        .response h4 {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .response p {
+            font-size: 1rem;
+            color: #333;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .container-wrapper {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            #logoutButton {
+                width: 130px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Upload a PDF and Ask a Question</h1>
+    <div class="container-wrapper">
+        <div class="container">
+            <h1>Upload a PDF and Ask a Question</h1>
 
-        <!-- Sign Out Button -->
-        <button id="logoutButton" class="btn btn-danger mb-3">Sign Out</button>
+            <!-- Upload Button and File Name Display -->
+            <button id="uploadButton" class="btn btn-primary btn-upload btn-center">Upload PDF</button>
+            <span id="fileName" class="file-name"></span>
 
-        <!-- File Upload Form -->
-        <form id="uploadForm" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="file">Upload PDF:</label>
-                <input type="file" class="form-control-file" id="file" name="file" accept="application/pdf" required>
+            <!-- Form to Ask a Question (Initially Hidden) -->
+            <form id="queryForm" method="POST" action="/query">
+                <div class="form-group">
+                    <label for="prompt">Your Prompt:</label>
+                    <input type="text" class="form-control" id="prompt" name="prompt" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-center">Submit</button>
+            </form>
+
+            <div class="response">
+                <h4>Response:</h4>
+                <p id="answer">{{ answer if answer else "Ask a question to get a response!" }}</p>
             </div>
-            <button type="submit" class="btn btn-primary">Upload PDF</button>
-        </form>
-
-        <!-- Form to Ask a Question (Initially Hidden) -->
-        <form id="queryForm" method="POST" action="/query">
-            <div class="form-group">
-                <label for="prompt">Your Prompt:</label>
-                <input type="text" class="form-control" id="prompt" name="prompt" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Submit</button>
-        </form>
-
-        <div class="response">
-            <h4>Response:</h4>
-            <p id="answer">{{ answer if answer else "Ask a question to get a response!" }}</p>
         </div>
+
+        <!-- Sign Out Button Positioned Below Container -->
+        <button id="logoutButton" class="btn btn-dark"><b>Sign Out</b></button>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Handle PDF upload via AJAX
-            $('#uploadForm').on('submit', function(e) {
-                e.preventDefault();  // Prevent form submission
-                let formData = new FormData(this);
-                
-                $.ajax({
-                    url: '/upload_pdf',  // Update this URL if incorrect
-                    type: 'POST',
-                    data: formData,
-                    contentType: false,
-                    processData: false,
-                    success: function(response) {
-                        if (response.message) {
-                            alert(response.message);  // Success message from server
-                            $('#queryForm').show();  // Show the query form
-                            $('#uploadForm').hide(); // Hide the upload form after successful upload
-                        }
-                    },
-                    error: function(response) {
-                        console.log(response);  // Log the full response to debug
-                        if (response.responseJSON && response.responseJSON.error) {
-                            alert("Error uploading PDF: " + response.responseJSON.error);  // Handle error
-                        } else {
-                            alert("An unexpected error occurred.");  // Generic error message
-                        }
-                    }
-                });
+            $('#uploadButton').on('click', function() {
+                $('#fileInput').trigger('click');
             });
 
-            // Handle Sign Out
+            $('#fileInput').on('change', function(e) {
+                let file = e.target.files[0];
+                if (file) {
+                    $('#fileName').text(file.name);
+
+                    let formData = new FormData();
+                    formData.append('file', file);
+
+                    $.ajax({
+                        url: '/upload_pdf',
+                        type: 'POST',
+                        data: formData,
+                        contentType: false,
+                        processData: false,
+                        success: function(response) {
+                            if (response.message) {
+                                alert(response.message);
+                                $('#queryForm').show();
+                            }
+                        },
+                        error: function(response) {
+                            console.log(response);
+                            if (response.responseJSON && response.responseJSON.error) {
+                                alert("Error uploading PDF: " + response.responseJSON.error);
+                            } else {
+                                alert("An unexpected error occurred.");
+                            }
+                        }
+                    });
+                }
+            });
+
             $('#logoutButton').on('click', function() {
                 $.ajax({
                     url: '/logout',
                     type: 'POST',
                     success: function(response) {
                         if (response.status === "success") {
-                            alert("You have been signed out.");  // Notify user
-                            window.location.href = '/login';  // Redirect to login page
+                            alert("You have been signed out.");
+                            window.location.href = '/login';
                         }
                     },
                     error: function() {
-                        alert("An error occurred while signing out.");  // Handle error
+                        alert("An error occurred while signing out.");
                     }
                 });
             });
         });
     </script>
+    <!-- Hidden file input to trigger with upload button -->
+    <input type="file" id="fileInput" style="display: none;" accept="application/pdf">
 </body>
 </html>

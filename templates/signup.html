@@ -4,33 +4,141 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up</title>
+    <!-- Add CSS styles here -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.10.2/mdb.min.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: hsl(0, 0%, 96%);
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+        .card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-top: 60px;
+        }
+        .form-outline {
+            margin-bottom: 20px;
+        }
+        .form-outline input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .text-primary {
+            color: #007bff;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .mb-4 {
+            margin-bottom: 1.5rem;
+        }
+        .fw-bold {
+            font-weight: bold;
+        }
+        .ls-tight {
+            letter-spacing: -0.05em;
+        }
+        .custom-text-size {
+            font-size: 1.65rem; /* Adjust this value as needed */
+            font-weight: bold;  /* Makes the text bold, optional */
+        }
+    </style>
 </head>
 <body>
-    <h1>Sign Up</h1>
-    <form id="signup-form">
-        <input type="email" id="signup-email" placeholder="Email" required>
-        <input type="password" id="signup-password" placeholder="Password" required>
-        <button type="submit">Sign Up</button>
-    </form>
+    <!-- Section: Design Block -->
+    <section>
+        <!-- Jumbotron -->
+        <div class="px-4 py-5 px-md-5 text-center text-lg-start" style="background-color: hsl(0, 0%, 96%)">
+            <div class="container">
+                <div class="row gx-lg-5 align-items-center">
+                    <div class="col-lg-6 mb-5 mb-lg-0">
+                        <h1 class="my-5 display-3 fw-bold ls-tight">
+                            InfoSpectra <br />
+                            <span class="text-primary custom-text-size">Intelligent Insights. Delivered.</span>
+                        </h1>
+                        <p style="color: hsl(217, 10%, 50.8%)">
+                            Tired of sifting through endless files and documents? Let our advanced 
+                            AI-driven document retrieval system, InfoSpectra do the heavy lifting for you. 
+                        </p>
+                    </div>
 
-    <p>Already have an account? <a href="/login">Sign In</a></p>
+                    <div class="col-lg-6 mb-5 mb-lg-0">
+                        <div class="card">
+                            <div class="card-body py-5 px-md-5">
+                                <form id="signup-form">
+                                    <!-- Email input -->
+                                    <div class="form-outline mb-4">
+                                        <input type="email" id="signup-email" class="form-control" placeholder="Email address" required />
+                                        <label class="form-label" for="signup-email">Email address</label>
+                                    </div>
 
+                                    <!-- Password input -->
+                                    <div class="form-outline mb-4">
+                                        <input type="password" id="signup-password" class="form-control" placeholder="Password" required />
+                                        <label class="form-label" for="signup-password">Password</label>
+                                    </div>
+
+                                    <!-- Submit button -->
+                                    <button type="submit" class="btn btn-primary btn-block mb-4">
+                                        Sign up
+                                    </button>
+
+                                    <!-- Sign in link -->
+                                    <div class="text-center">
+                                        <p>Already have an account? <a href="/login" class="text-primary">Sign In</a></p>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Jumbotron -->
+    </section>
+    <!-- Section: Design Block -->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.10.2/mdb.min.js"></script>
     <script>
         document.getElementById('signup-form').onsubmit = async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
-            const response = await fetch('/register', {
+            e.preventDefault(); // Prevent form submission
+            const email = document.getElementById('signup-email').value; // Get email value
+            const password = document.getElementById('signup-password').value; // Get password value
+            const response = await fetch('/register', { // Send POST request
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email, password})
+                body: JSON.stringify({email, password}) // Convert data to JSON
             });
-            const result = await response.json();
+            const result = await response.json(); // Parse JSON response
 
             if (response.ok) {
                 window.location.href = '/query';  // Redirect to query after signup
             } else {
-                alert(result.error || result.message);
+                alert(result.error || result.message); // Show error message
             }
         };
     </script>
