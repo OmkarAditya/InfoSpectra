@@ -2,7 +2,7 @@ from langchain import PromptTemplate
 from langchain.chains import RetrievalQA
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
+from langchain.vectorstores import FAISS  
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 import os
@@ -10,14 +10,22 @@ import tempfile
 from dotenv import load_dotenv
 from firebase_admin import storage
 
-def initialize_qa_chain():
-    # Load environment variables from .env file
+# Cache to store answers based on file name and query
+cache = {}
+
+def get_cached_answer(file_name, query):
+    # Check if a cached answer exists for the given file name and query
+    cache_key = f"{file_name}:{query}"
+    return cache.get(cache_key)
+
+def set_cached_answer(file_name, query, answer):
+    # Cache the answer using file name and query as the key
+    cache_key = f"{file_name}:{query}"
+    cache[cache_key] = answer
+
+def initialize_qa_chain(user_query):
     load_dotenv()
-
-    # Extract the GOOGLE_GEMINI_KEY from .env file
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-    # Initialize the LLM (Google Gemini Pro) with API key
     llm = ChatGoogleGenerativeAI(
         model="gemini-pro",
         google_api_key=GOOGLE_API_KEY,
@@ -25,41 +33,37 @@ def initialize_qa_chain():
         convert_system_message_to_human=True
     )
 
-    # Initialize Firebase storage bucket
     bucket = storage.bucket()
-    
-    # List all PDF files in the specified folder in Firebase Storage
-    blobs = bucket.list_blobs(prefix='pdfs/')  # Adjust prefix according to your structure
+    blobs = bucket.list_blobs(prefix='pdfs/')
     pdf_files = [blob for blob in blobs if blob.name.endswith('.pdf')]
-    
-    # Get the latest PDF file based on its updated timestamp
     latest_pdf_blob = max(pdf_files, key=lambda b: b.updated, default=None)
 
     if latest_pdf_blob is None:
         raise Exception("No PDF files found in Firebase Storage.")
 
-    # Download the latest PDF file to a temporary location
+    file_name = latest_pdf_blob.name
+
+    # Check for cached answer before processing
+    cached_answer = get_cached_answer(file_name, user_query)
+    if cached_answer:
+        return cached_answer  # Return cached answer if it exists
+
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
         latest_pdf_blob.download_to_file(temp_file)
         temp_file_path = temp_file.name
 
-    # Load the PDF document and split it into pages
     pdf_loader = PyPDFLoader(temp_file_path)
     pages = pdf_loader.load_and_split()
-
-    # Split text into chunks with overlap for better retrieval context
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     context = "\n\n".join(str(p.page_content) for p in pages)
     texts = text_splitter.split_text(context)
 
-    # Create embeddings for text chunks using Google Generative AI Embeddings
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/embedding-001",
         google_api_key=GOOGLE_API_KEY
     )
-    vector_index = Chroma.from_texts(texts, embeddings).as_retriever(search_kwargs={"k": 5})
+    vector_index = FAISS.from_texts(texts, embeddings).as_retriever(search_kwargs={"k": 5})
 
-    # Define the prompt template for answering questions based on retrieved documents
     template = """Use the following pieces of context to answer the question at the end. 
     If you don't know the answer, just say that you don't know, don't try to make up an answer. 
     Keep the answer as concise as possible. Always say "thanks for asking!" at the end of the answer.
@@ -88,7 +92,6 @@ def initialize_qa_chain():
 
     QA_CHAIN_PROMPT = PromptTemplate.from_template(template)
 
-    # Create a QA chain combining the LLM and retriever for context-based question answering
     qa_chain = RetrievalQA.from_chain_type(
         llm,
         retriever=vector_index,
@@ -96,4 +99,10 @@ def initialize_qa_chain():
         chain_type_kwargs={"prompt": QA_CHAIN_PROMPT}
     )
 
-    return qa_chain
+    # Retrieve answer from the QA chain
+    result = qa_chain({"query": user_query})["result"]
+
+    # Cache the result with file name and query
+    set_cached_answer(file_name, user_query, result)
+
+    return result

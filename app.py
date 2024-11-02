@@ -76,11 +76,12 @@ def query():
         return redirect(url_for('login_page'))  # Redirect to login if no cookie
 
     if request.method == 'POST':
+
         # Handle user prompt input
         user_prompt = request.form.get('prompt')
-        
-        # Initialize Query Chain
-        qa_chain = initialize_qa_chain()
+        # Call initialize_qa_chain with the user query to check cache and get answer
+        answer = initialize_qa_chain(user_prompt)
+        return render_template('query.html', answer=answer)
 
         # Get the user's collection based on user_id
         user_collection_ref = db.collection(user_id)
