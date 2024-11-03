@@ -81,7 +81,6 @@ def query():
         user_prompt = request.form.get('prompt')
         # Call initialize_qa_chain with the user query to check cache and get answer
         answer = initialize_qa_chain(user_prompt)
-        return render_template('query.html', answer=answer)
 
         # Get the user's collection based on user_id
         user_collection_ref = db.collection(user_id)
@@ -101,9 +100,9 @@ def query():
             alert_message = f"<script>alert('You have reached the maximum limit of {n} prompts. You cannot submit more prompts.');</script>"
             return alert_message + render_template('query.html')
 
-
+        
         # Otherwise, process the new prompt
-        answer = qa_chain({"query": user_prompt})["result"]  # Call your QA chain for the answer
+        # answer = qa_chain({"query": user_prompt})["result"]  # Call your QA chain for the answer
 
         # Add the new document with prompt, answer, timestamp, and updated frequency
         user_collection_ref.add({
