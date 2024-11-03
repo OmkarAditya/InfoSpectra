@@ -12,9 +12,26 @@ load_dotenv()
 # Initialize Flask app
 app = Flask(__name__)
 
-# Initialize Firebase Admin SDK
-cred = credentials.Certificate(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
-initialize_app(cred, {'storageBucket': os.getenv('FIREBASE_STORAGE_BUCKET')})
+def initialize_firebase():
+    """Initialize Firebase with credentials from either file or environment variable"""
+    try:
+        if os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON'):
+            # Render environment - use JSON from environment variable
+            cred_dict = json.loads(os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON'))
+            cred = credentials.Certificate(cred_dict)
+        else:
+            # Local environment - use file path
+            cred = credentials.Certificate(os.getenv('GOOGLE_APPLICATION_CREDENTIALS'))
+        
+        initialize_app(cred, {'storageBucket': os.getenv('FIREBASE_STORAGE_BUCKET')})
+        return True
+    except Exception as e:
+        print(f"Firebase initialization error: {e}")
+        return False
+
+# Initialize Firebase
+if not initialize_firebase():
+    raise RuntimeError("Failed to initialize Firebase")
 
 # Initialize Firestore
 db = firestore.client()
