@@ -11,13 +11,22 @@ load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
-
 def initialize_firebase():
     """Initialize Firebase with credentials from either file or environment variable"""
     try:
         if os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON'):
-            # Render environment - use JSON from environment variable
-            cred_dict = json.loads(os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON'))
+            # For Render deployment - use JSON string directly
+            cred_info = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+            # Handle the credential info as a dictionary
+            if isinstance(cred_info, str):
+                try:
+                    cred_dict = json.loads(cred_info)
+                except json.JSONDecodeError:
+                    print("Error decoding JSON credential string")
+                    return False
+            else:
+                cred_dict = cred_info
+                
             cred = credentials.Certificate(cred_dict)
         else:
             # Local environment - use file path
@@ -26,14 +35,14 @@ def initialize_firebase():
         initialize_app(cred, {'storageBucket': os.getenv('FIREBASE_STORAGE_BUCKET')})
         return True
     except Exception as e:
-        print(f"Firebase initialization error: {e}")
+        print(f"Firebase initialization error: {str(e)}")
         return False
 
 # Initialize Firebase
 if not initialize_firebase():
-    raise RuntimeError("Failed to initialize Firebase")
+    raise RuntimeError("Failed to initialize Firebase")# Initialize Firestore
 
-# Initialize Firestore
+    
 db = firestore.client()
 user_collection = db.collection('users')
 query_collection = db.collection('queries')
